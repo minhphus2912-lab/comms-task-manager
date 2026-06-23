@@ -163,10 +163,11 @@ a:hover { text-decoration: underline; }
 @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(23, 71, 157,.45);} 50%{box-shadow:0 0 0 6px rgba(23, 71, 157,0);} }
 @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
 
-.pri--low { color: #64748b; } 
-.pri--normal { background: transparent; color: var(--c-text-muted); border-color: transparent; box-shadow: none; }
-.pri--high { color: var(--c-primary-active); }
-.pri--urgent { color: #dc2626; } .pri--urgent::before { content: '⚡'; font-size: 11px; }
+/* Màu mức độ ưu tiên: 🟢 Thấp · 🟡 Bình thường · 🟠 Cao · 🔴 Khẩn cấp */
+.pri--low { background: rgba(52,199,89,0.16); color: #1e8040; border-color: rgba(52,199,89,0.35); }
+.pri--normal { background: rgba(255,204,0,0.20); color: #8a6d00; border-color: rgba(255,204,0,0.45); }
+.pri--high { background: rgba(238,104,35,0.16); color: #c0480f; border-color: rgba(238,104,35,0.4); }
+.pri--urgent { background: rgba(255,59,48,0.15); color: #c0271e; border-color: rgba(255,59,48,0.4); } .pri--urgent::before { content: '⚡'; font-size: 11px; }
 
 .tag { color: var(--c-text); }
 .tag--som { color: #1e8040; } .tag--dung { color: var(--c-secondary-active); }
@@ -413,6 +414,7 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
 .cal-today-dot { font-size: 10px; font-weight: 700; color: #fff; background: var(--c-primary); padding: 1px 7px; border-radius: 999px; margin-left: 4px; }
 .cal-empty { color: var(--c-text-faint); font-size: 12px; }
 .cal-chip { display: block; font-size: 11px; line-height: 1.25; padding: 3px 7px; border-radius: 7px; margin-top: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.045); border-left: 3px solid #b0b0b5; transition: filter var(--t) var(--ease); }
+.cal-chip-who { font-size: 9.5px; font-weight: 600; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-chip:hover { filter: brightness(0.95); }
 .cal-chip.pill--todo { border-left-color: #475569; }
 .cal-chip.pill--run { border-left-color: #0a84ff; }

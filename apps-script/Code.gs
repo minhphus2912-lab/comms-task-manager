@@ -320,6 +320,9 @@ function requireCrewManager_(token) {
 }
 // Ai được SỬA/XOÁ một task: task crew -> quản lý crew; còn lại -> Trưởng/Phó phòng.
 function canManageTask_(u, t) { return t.crewTask ? canManageCrew_(u) : isManager_(u); }
+// Chính chủ được SỬA task daily (không thuộc dự án) của mình: chuyên viên Phòng (own) hoặc thành viên crew.
+function isOwnEditable_(u, t) { return t.assigneeCode === u.code && !t.projectId && (deptScopeOf_(u.role) === 'own' || isCrewRole_(u.role)); }
+function canEditTask_(u, t) { return canManageTask_(u, t) || isOwnEditable_(u, t); }
 
 // Phân cấp hiển thị: số NHỎ = cấp CAO. Vai trò thấp KHÔNG xem được thông tin vai trò cao.
 // Hai "silo" độc lập: Phòng (HEAD/DEPUTY/STAFF) và Production Crew (LEAD/QUAY/CHUP/MEMBER).
@@ -503,10 +506,11 @@ function getState(token) {
   else if (crewOwn) crewTasksArr = allTasks.filter(function (t) { return t.crewTask && t.assigneeCode === u.code; });
   var tasks = deptTasks.concat(crewTasksArr);
 
-  // ----- PROJECTS (chỉ thuộc Phòng) -----
+  // ----- PROJECTS — dự án dùng chung; crew cũng thấy để LIÊN KẾT task crew vào dự án Trung Tâm. -----
   var projects;
   if (dScope === 'all' || dScope === 'allButHigher') projects = allProjects;
   else if (dScope === 'own') projects = allProjects.filter(function (p) { return p.leadCode === u.code || (p.memberCodes || []).indexOf(u.code) >= 0; });
+  else if (canViewCrew_(u)) projects = allProjects; // crew (Lead/Sub-Lead/Thành viên) thấy dự án để liên kết
   else projects = [];
 
   // ----- MEMBERS (chỉ những người viewer được phép thấy) -----
@@ -559,7 +563,12 @@ function createTask(token, payload) {
   //    (Thành viên Production Crew KHÔNG có bảng Phòng nên không lọt vào nhánh này.)
   var selfCreate = false;
   if (crewTask) {
-    if (!canManageCrew_(u)) throw err_('Bạn không có quyền quản lý Production Crew.');
+    if (!canManageCrew_(u)) {
+      // Thành viên crew (không phải quản lý) được TỰ giao việc crew cho chính mình.
+      if (!isCrewRole_(u.role)) throw err_('Bạn không có quyền quản lý Production Crew.');
+      selfCreate = true;
+      if (String(payload.assigneeCode).trim() !== u.code) throw err_('Bạn chỉ được tự giao việc cho chính mình.');
+    }
   } else if (!isManager_(u)) {
     if (deptScopeOf_(u.role) !== 'own') throw err_('Chỉ Trưởng phòng / Phó phòng mới có quyền thực hiện thao tác này.');
     selfCreate = true;
@@ -576,8 +585,8 @@ function createTask(token, payload) {
   if (outranksWithinSilo_(u.role, assignee.role)) throw err_('Không thể giao việc cho người có vai trò cao hơn.');
 
   var difficulty = String(payload.difficulty || '').trim();
-  var points = difficultyPoints_()[difficulty];
-  if (points === undefined) throw err_('Độ khó không hợp lệ.');
+  if (DIFFICULTY_ORDER.indexOf(difficulty) < 0) throw err_('Độ khó không hợp lệ.');
+  var points = 0; // KPI đã bỏ — không còn chấm điểm
 
   var title = String(payload.title || '').trim();
   if (!title) throw err_('Vui lòng nhập tên công việc.');
@@ -737,7 +746,9 @@ function updateTask(token, taskCode, payload) {
     for (var i = 1; i < values.length; i++) { if (String(values[i][0]) === String(taskCode)) { rowIdx = i; break; } }
     if (rowIdx < 0) throw err_('Không tìm thấy công việc.');
     var t = taskObjFromRow_(values[rowIdx]);
-    if (!canManageTask_(u, t)) throw err_('Bạn không có quyền sửa công việc này.');
+    if (!canEditTask_(u, t)) throw err_('Bạn không có quyền sửa công việc này.');
+    // Người sửa vì là CHÍNH CHỦ (không phải quản lý) thì không được giao lại cho người khác.
+    if (!canManageTask_(u, t) && String(payload.assigneeCode).trim() !== u.code) throw err_('Bạn chỉ được sửa việc của chính mình.');
 
     var title = String(payload.title || '').trim();
     if (!title) throw err_('Vui lòng nhập tên công việc.');
@@ -747,8 +758,8 @@ function updateTask(token, taskCode, payload) {
     if (!t.crewTask && !hasDeptBoard_(assignee.role)) throw err_('Việc của Phòng chỉ giao cho nhân sự có mặt ở Phòng.');
     if (outranksWithinSilo_(u.role, assignee.role)) throw err_('Không thể giao việc cho người có vai trò cao hơn.');
     var difficulty = String(payload.difficulty || '').trim();
-    var points = difficultyPoints_()[difficulty];
-    if (points === undefined) throw err_('Độ khó không hợp lệ.');
+    if (DIFFICULTY_ORDER.indexOf(difficulty) < 0) throw err_('Độ khó không hợp lệ.');
+    var points = 0; // KPI đã bỏ
     var priority = String(payload.priority || '').trim();
     if (PRIORITY_ORDER.indexOf(priority) < 0) priority = 'Bình thường';
 
