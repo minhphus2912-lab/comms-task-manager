@@ -66,6 +66,11 @@ Web app quản lý công việc nội bộ cho Trung Tâm Truyền Thông - Tổ
 - **Dự án:** trang chi tiết **gom tự động theo Người thực hiện** (bảng đủ cột); **ngày sự kiện = ngày cuối**, mọi việc con phải có **hạn ≤ ngày sự kiện**.
 - Đổi **"Giao task vào dự án" → "Giao việc"**; thêm **"Hạn hoàn thành"** trong ô tải công việc; tách **Digital marketing → Digital marketing / Facebook / TikTok**.
 
+### Mới ở v20.1 (tinh chỉnh)
+- **Tổng hợp / Thông báo = popup hiện 1 lần** mỗi khi đăng nhập/vào lại (hiển thị đầy đủ: mã · tên · người làm · người tạo · deadline · trạng thái) — **không còn là mục menu riêng**.
+- **Trang Dự án rộng hơn:** bỏ bố cục 2 cột chật → xếp dọc toàn chiều rộng; **tên việc xuống tối đa 2 dòng** (không bị cắt cụt).
+- **Tăng tốc (giảm lag):** điều hướng/bấm **render từ cache → tức thì**, KHÔNG tải lại Google Sheet mỗi lần bấm. Dữ liệu vẫn tươi nhờ **đồng bộ nền mỗi 5 phút** + **tự làm mới khi quay lại tab** + nút **🔄 Làm mới** thủ công ở thanh trên; mọi thao tác ghi (tạo/sửa/xoá/đổi trạng thái) vẫn làm mới ngay sau đó. (Thông báo việc mới & phát hiện "bị đá phiên" chạy theo nhịp 5 phút / khi quay lại tab.)
+
 ---
 
 ## 2. Xem trước trên máy (không cần Google)
