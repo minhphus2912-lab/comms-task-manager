@@ -317,7 +317,7 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
 .userbox .uname { font-weight: 700; font-size: 15px; }
 .userbox .utitle { font-size: 13px; color: var(--c-text-muted); margin-top: 4px; font-weight: 500; }
 
-.main { max-width: 1200px; width: 100%; min-width: 0; margin: 0 auto; }
+.main { max-width: 1440px; width: 100%; min-width: 0; margin: 0 auto; }
 .topbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-6) var(--sp-8) var(--sp-4) var(--sp-8); position: sticky; top: 0; z-index: 10; background: rgba(240, 242, 245, 0.2); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); border-bottom: var(--glass-border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.02); }
 .page-content { padding: var(--sp-5) var(--sp-8); }
 .topbar .menu-toggle { display: none; }
@@ -485,6 +485,32 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
   .cal-cell { min-height: 74px; padding: 5px; }
   .cal-year { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ===== Sidebar GỌN hơn (đỡ phải cuộn) + THU GỌN được (tuỳ biến) ===== */
+.sidebar { padding: 16px 14px; gap: 4px; }
+.brand { padding: 2px 8px 12px; }
+.sidebar .userbox { padding-top: 12px; }
+.nav { gap: 5px; margin-top: 6px; }
+.nav-group { gap: 4px; }
+.nav-zone-dept, .nav-zone-prod { padding: 6px 6px; }
+.nav-group-title { padding: 4px 12px 2px; }
+.nav-link { min-height: 42px; padding: 7px 14px; gap: 12px; }
+.nav-link .ni { width: 30px; height: 30px; font-size: 17px; }
+.collapse-toggle { display: none; }
+@media (min-width:861px) {
+  .collapse-toggle { display: inline-flex; }
+  .app.sidebar-collapsed { grid-template-columns: 72px 1fr; }
+  .sidebar-collapsed .sidebar { padding: 16px 8px; }
+  .sidebar-collapsed .brand { justify-content: center; padding: 4px 0 14px; }
+  .sidebar-collapsed .brand-name, .sidebar-collapsed .brand-sub,
+  .sidebar-collapsed .nav-label, .sidebar-collapsed .ngt-text,
+  .sidebar-collapsed .userbox .uname, .sidebar-collapsed .userbox .utitle, .sidebar-collapsed .userbox .role-badge { display: none; }
+  .sidebar-collapsed .nav-link { justify-content: center; padding: 8px; }
+  .sidebar-collapsed .nav-group-title { justify-content: center; padding: 5px 0 2px; }
+  .sidebar-collapsed .userbox .row { flex-direction: column; gap: 10px; }
+  .sidebar-collapsed .userbox-id { justify-content: center; }
+}
+@media (max-width:860px) { .collapse-toggle { display: none !important; } }
 </style>
 </head>
 <body>
@@ -1161,11 +1187,11 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
  var SESS_KEY = 'pttt_session_v3';
  var state = { boot: null, token: null, user: null, tasks: [], projects: [], members: [], config: null, kpiTargets: {}, page: 'dashboard', selectedProjectId: null, crewTab: 'dashboard', workTab: 'daily', crewWorkTab: 'daily', workPeriod: { daily: { type: 'month', anchor: todayStr() }, projects: { type: 'month', anchor: todayStr() }, crewdaily: { type: 'month', anchor: todayStr() }, crewprojects: { type: 'month', anchor: todayStr() } }, period: { type: 'month', anchor: todayStr() }, scope: 'me', filters: { status: '', difficulty: '', assignee: '', q: '' } };
 
- function toast(msg, kind) {
+ function toast(msg, kind, ms) {
    var wrap = el('toasts'); if (!wrap) { wrap = document.createElement('div'); wrap.id = 'toasts'; wrap.className = 'toasts'; document.body.appendChild(wrap); }
    var t = document.createElement('div'); t.className = 'toast toast--' + (kind || 'info'); t.textContent = msg; wrap.appendChild(t);
    requestAnimationFrame(function () { t.classList.add('show'); });
-   setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 3600);
+   setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, ms || 3600);
  }
  function handleErr(e) {
    var msg = (e && e.message) ? e.message : String(e);
@@ -1180,7 +1206,7 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
    state.filters = { status: '', difficulty: '', assignee: '', q: '' };
    state.scope = 'me';
    state.period = { type: 'month', anchor: todayStr() };
-   state._notifyArmed = false;
+   state._notifyArmed = false; state._giftSeen = {};
    try { localStorage.removeItem(SESS_KEY); } catch (e) {}
    try { sessionStorage.removeItem(SESS_KEY); } catch (e) {}
  }
@@ -1228,16 +1254,22 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
    } catch (e) {}
  }
  function notifyGift(t) {
+   // Idempotent theo taskCode: dù 2 lần refresh chạy chồng nhau (poll/quay-lại-tab/làm-mới) cũng chỉ báo 1 lần.
+   state._giftSeen = state._giftSeen || {};
+   if (state._giftSeen[t.taskCode]) return;
+   state._giftSeen[t.taskCode] = true;
    var dl = t.deadline ? fmtDateVN(t.deadline) : 'Chưa đặt hạn';
    var body = (t.title || '') + ' - ' + dl + ' - Bạn có quà tặng đến từ ' + memberName(t.createdBy);
+   // Thông báo hệ điều hành (nếu được cấp quyền & không bị iframe chặn). Trong iframe GAS thường BỊ CHẶN,
+   // nên kênh ĐÁNG TIN CẬY là toast trong-ứng-dụng + âm thanh (luôn hiện, ở lâu 9s).
    try {
      if ('Notification' in window && Notification.permission === 'granted') {
        var n = new Notification('🎁 Bạn có công việc mới', { body: body, tag: t.taskCode });
-       setTimeout(function () { try { n.close(); } catch (e) {} }, 8000);
+       setTimeout(function () { try { n.close(); } catch (e) {} }, 9000);
      }
    } catch (e) {}
    playDing();
-   toast('🎁 ' + body, 'ok');
+   toast('🎁 Quà tặng công việc: ' + body, 'ok', 9000);
  }
  // So khớp việc mới được giao cho MÌNH (do người khác giao) giữa 2 lần refresh.
  function maybeNotifyNewAssignments(prev, curr) {
@@ -1253,14 +1285,14 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
    });
  }
  // ====== POLL (15s): phát hiện bị "đá" phiên + việc mới. KHÔNG tự re-render để không phá thao tác đang dở. ======
- // Đồng bộ NỀN mỗi 5 phút (không chặn UI, không re-render) — đủ để bắt việc mới + phiên bị đá.
- // Điều hướng/bấm KHÔNG tải lại Sheet (render từ cache) -> nhanh hẳn; dữ liệu vẫn tươi nhờ poll + quay-lại-tab + sau thao tác.
+ // Đồng bộ NỀN mỗi 30 GIÂY (không chặn UI, không re-render) — bắt việc mới + phiên bị đá GẦN NHƯ NGAY.
+ // Điều hướng/bấm KHÔNG tải lại Sheet (render từ cache) -> nhanh; chỉ poll nền + quay-lại-tab + sau thao tác mới đọc Sheet.
  function startPolling() {
    stopPolling();
    state._pollTimer = setInterval(function () {
      if (!state.token) { stopPolling(); return; }
      refreshState().catch(handleErr); // SESSION_KICKED -> handleErr tự đăng xuất; việc mới -> notifyGift
-   }, 300000);
+   }, 30000);
  }
  function stopPolling() { if (state._pollTimer) { clearInterval(state._pollTimer); state._pollTimer = null; } }
 
@@ -1345,18 +1377,20 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
 
  function renderShell() {
    var u = state.user;
+   if (state.sidebarCollapsed === undefined) { try { state.sidebarCollapsed = localStorage.getItem('pttt_sb_collapsed') === '1'; } catch (e) { state.sidebarCollapsed = false; } }
+   var collapsed = !!state.sidebarCollapsed;
    var nav = navGroups().map(function (g) {
      var links = g.items.map(function (it) {
-       return '<div class="nav-link' + (navLinkActive(it) ? ' is-active' : '') + '" data-action="nav" data-page="' + it.page + '"' + (it.tab ? ' data-tab="' + it.tab + '"' : '') + '>' +
-         '<div class="ni"><span style="position:relative; z-index:2">' + it.icon + '</span></div>' + esc(it.label) + '</div>';
+       return '<div class="nav-link' + (navLinkActive(it) ? ' is-active' : '') + '" data-action="nav" data-page="' + it.page + '"' + (it.tab ? ' data-tab="' + it.tab + '"' : '') + ' title="' + esc(it.label) + '">' +
+         '<div class="ni"><span style="position:relative; z-index:2">' + it.icon + '</span></div><span class="nav-label">' + esc(it.label) + '</span></div>';
      }).join('');
-     return '<div class="nav-group nav-zone-' + g.key + '"><div class="nav-group-title">' + g.icon + ' ' + esc(g.title) + '</div>' + links + '</div>';
+     return '<div class="nav-group nav-zone-' + g.key + '"><div class="nav-group-title"><span class="ngt-ico">' + g.icon + '</span> <span class="ngt-text">' + esc(g.title) + '</span></div>' + links + '</div>';
    }).join('');
    document.body.innerHTML =
-     '<div class="scrim" id="scrim"></div><div class="app">' +
+     '<div class="scrim" id="scrim"></div><div class="app' + (collapsed ? ' sidebar-collapsed' : '') + '">' +
      '<aside class="sidebar" id="sidebar">' +
      '<div class="brand"><div class="logo">✦</div><div><div class="brand-name">' + esc((state.config && state.config.departmentName) || '4T-TCSK') + '</div><div class="brand-sub">Hệ thống Quản trị</div></div></div>' +
-     '<nav class="nav" style="margin-top:16px">' + nav + '</nav>' +
+     '<nav class="nav">' + nav + '</nav>' +
      '<div class="userbox"><div class="row row--between">' +
      '<div class="userbox-id" data-action="open-avatar" title="Đổi ảnh đại diện" style="cursor:pointer;display:flex;gap:10px;align-items:center;min-width:0">' +
      avatarHtml(u, 42, 'open-avatar') +
@@ -1364,7 +1398,7 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
      '</div>' +
      '<button class="icon-btn" data-action="logout" title="Đăng xuất" style="background:rgba(255,59,48,0.1); color:#ff3b30">⎋</button>' +
      '</div></div></aside>' +
-     '<main class="main"><div class="topbar"><button class="icon-btn menu-toggle" data-action="toggle-sidebar">☰</button><div class="page-title" id="page-title"></div><button class="icon-btn" id="btn-refresh" data-action="manual-refresh" title="Làm mới dữ liệu" style="margin-left:auto">🔄</button></div>' +
+     '<main class="main"><div class="topbar"><button class="icon-btn menu-toggle" data-action="toggle-sidebar">☰</button><button class="icon-btn collapse-toggle" data-action="toggle-collapse" title="Thu gọn / mở rộng thanh điều hướng">' + (collapsed ? '⮞' : '⮜') + '</button><div class="page-title" id="page-title"></div><button class="icon-btn" id="btn-refresh" data-action="manual-refresh" title="Làm mới dữ liệu" style="margin-left:auto">🔄</button></div>' +
      '<div class="page-content" id="view"></div></main></div><div class="toasts" id="toasts"></div>';
    el('scrim').addEventListener('click', function() { el('sidebar').classList.remove('is-open'); el('scrim').classList.remove('is-open'); });
    renderPage();
@@ -2813,6 +2847,7 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
      try { location.reload(); } catch(e){} 
    }
    else if (action === 'toggle-sidebar') { el('sidebar').classList.toggle('is-open'); el('scrim').classList.toggle('is-open'); }
+   else if (action === 'toggle-collapse') { state.sidebarCollapsed = !state.sidebarCollapsed; try { localStorage.setItem('pttt_sb_collapsed', state.sidebarCollapsed ? '1' : '0'); } catch (e) {} renderShell(); }
    else if (action === 'period-type') { state.period.type = node.getAttribute('data-type'); state.period.anchor = todayStr(); renderPage(); }
    else if (action === 'period-shift') { state.period.anchor = shiftAnchor(state.period.anchor, state.period.type, +node.getAttribute('data-delta')); renderPage(); }
    else if (action === 'cal-month') { state.period.type = 'month'; state.period.anchor = node.getAttribute('data-ym') + '-01'; renderPage(); }
