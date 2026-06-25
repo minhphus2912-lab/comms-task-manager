@@ -95,7 +95,7 @@ var COL_WIDTHS_ = {
   taskCode: 150, title: 250, description: 210, assigneeCode: 92, assigneeCodes: 150, difficulty: 95, kpiPoint: 62,
   status: 116, createdBy: 96, createdAt: 142, startedAt: 142, submittedAt: 142, completedAt: 142, lastPausedAt: 142,
   deadline: 106, reportLink: 150, completeLink: 150, note: 190, priority: 102, pauseHours: 82,
-  projectId: 116, crewTask: 74, category: 132, phatSinh: 74, batchName: 150,
+  projectId: 116, crewTask: 74, category: 132, phatSinh: 74, batchName: 150, startDate: 106, needSupport: 90, supportNote: 200,
   code: 86, name: 162, pinHash: 92, role: 132, active: 64, grants: 116, avatar: 90,
   id: 142, leadCode: 96, memberCodes: 172, eventDate: 110,
   memberCode: 116, target: 82,

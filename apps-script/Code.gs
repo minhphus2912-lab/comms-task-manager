@@ -71,7 +71,8 @@ var TASK_COLS = ['taskCode', 'title', 'description', 'assigneeCode', 'difficulty
                  'kpiPoint', 'status', 'createdBy', 'createdAt', 'deadline',
                  'startedAt', 'submittedAt', 'completedAt', 'reportLink', 'note',
                  'priority', 'pauseHours', 'lastPausedAt', 'projectId', 'crewTask',
-                 'category', 'completeLink', 'phatSinh', 'batchName', 'assigneeCodes'];
+                 'category', 'completeLink', 'phatSinh', 'batchName', 'assigneeCodes',
+                 'startDate', 'needSupport', 'supportNote'];
 // Phần phụ công việc (Trung Tâm Truyền thông).
 var WORK_CATEGORIES = ['Admin', 'Design', 'Digital marketing', 'Facebook', 'TikTok', 'Multimedia', 'PR', 'Internal communications'];
 var PROJECT_COLS = ['id', 'name', 'leadCode', 'memberCodes', 'eventDate', 'status', 'createdAt'];
@@ -114,7 +115,7 @@ function apiFunctions_() {
   return {
     bootstrap: bootstrap, login: login, logout: logout, getState: getState,
     createTask: createTask, transitionTask: transitionTask, updateTaskNote: updateTaskNote,
-    updateTask: updateTask, deleteTask: deleteTask, setTaskDeadline: setTaskDeadline,
+    updateTask: updateTask, deleteTask: deleteTask, setTaskDeadline: setTaskDeadline, setTaskSupport: setTaskSupport,
     createProject: createProject, updateProject: updateProject, completeProject: completeProject, deleteProject: deleteProject,
     changePassword: changePassword, setKpiTarget: setKpiTarget, setCrewRole: setCrewRole, setGrant: setGrant,
     saveAvatar: saveAvatar, upsertMember: upsertMember, deleteMember: deleteMember, addCrewMember: addCrewMember, updateCrewMember: updateCrewMember,
@@ -413,11 +414,13 @@ function taskObjFromRow_(row) {
   o.pauseHours = Number(o.pauseHours) || 0;
   o.crewTask = (o.crewTask === true || String(o.crewTask).toUpperCase() === 'TRUE');
   o.phatSinh = (o.phatSinh === true || String(o.phatSinh).toUpperCase() === 'TRUE');
-  var dateOnly = { deadline: 1 };
+  o.needSupport = (o.needSupport === true || String(o.needSupport).toUpperCase() === 'TRUE');
+  var dateOnly = { deadline: 1, startDate: 1 };
   var dateTime = { createdAt: 1, startedAt: 1, submittedAt: 1, completedAt: 1, lastPausedAt: 1 };
   ['taskCode', 'title', 'description', 'assigneeCode', 'difficulty', 'status',
    'createdBy', 'createdAt', 'deadline', 'startedAt', 'submittedAt', 'completedAt',
-   'reportLink', 'note', 'priority', 'lastPausedAt', 'projectId', 'category', 'completeLink', 'batchName']
+   'reportLink', 'note', 'priority', 'lastPausedAt', 'projectId', 'category', 'completeLink', 'batchName',
+   'startDate', 'supportNote']
     .forEach(function (c) {
       if (dateOnly[c]) o[c] = cellToDateStr_(o[c], false);
       else if (dateTime[c]) o[c] = cellToDateStr_(o[c], true);
@@ -516,7 +519,8 @@ function readKpiTargets_() {
 // v15: thêm sheet Chats + Messages (mục Tin nhắn / chat).
 // v16: thêm cột task assigneeCodes (nhiều người thực hiện trong 1 task; tương thích ngược -> [assigneeCode]).
 // v17: định dạng lại MỌI sheet cho gọn gàng (header, kẻ sọc, bề rộng cột, clip) qua formatSheets_().
-var MIG_VERSION = '17';
+// v18: thêm cột task startDate (ngày bắt đầu dự kiến) + needSupport/supportNote (yêu cầu hỗ trợ).
+var MIG_VERSION = '18';
 function ensureMigrated_() {
   try {
     var props = PropertiesService.getScriptProperties();
@@ -701,6 +705,8 @@ function createTask(token, payload) {
   if (category && WORK_CATEGORIES.indexOf(category) < 0) category = '';
   var phatSinh = !!payload.phatSinh && !!projectId; // chỉ task trong dự án mới có "phát sinh"
   var batchName = String(payload.batchName || '').trim(); // "đầu việc chung" gom các việc con
+  var startDate = normalizeDate_(payload.startDate); // NGÀY bắt đầu dự kiến (tùy chọn)
+  if (startDate && deadline && startDate > deadline) throw err_('Ngày bắt đầu không được trễ hơn hạn cuối.');
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -730,7 +736,8 @@ function createTask(token, payload) {
       deadline: deadline, startedAt: '', submittedAt: '', completedAt: '',
       reportLink: '', note: note, priority: priority,
       pauseHours: 0, lastPausedAt: '', projectId: projectId || '', crewTask: crewTask,
-      category: category, completeLink: '', phatSinh: phatSinh, batchName: batchName
+      category: category, completeLink: '', phatSinh: phatSinh, batchName: batchName,
+      startDate: startDate, needSupport: false, supportNote: ''
     };
     tSheet.appendRow(taskToRow_(task));
     task.projectId = projectId || null;
@@ -881,6 +888,28 @@ function setTaskDeadline(token, taskCode, deadline) {
   } finally { lock.releaseLock(); }
 }
 
+/** Người THỰC HIỆN bật/tắt cờ "Cần hỗ trợ" trên công việc của mình (kèm lý do tùy chọn). Quản lý sẽ thấy badge. */
+function setTaskSupport(token, taskCode, need, note) {
+  var u = requireUser_(token);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = getSheet_(SH_TASKS);
+    var values = sh.getDataRange().getValues();
+    var rowIdx = -1;
+    for (var i = 1; i < values.length; i++) { if (String(values[i][0]) === String(taskCode)) { rowIdx = i; break; } }
+    if (rowIdx < 0) throw err_('Không tìm thấy công việc.');
+    var t = taskObjFromRow_(values[rowIdx]);
+    if (!isTaskAssignee_(t, u.code)) throw err_('Chỉ người thực hiện mới được yêu cầu hỗ trợ cho công việc này.');
+    t.needSupport = !!need;
+    t.supportNote = need ? String(note || '').trim() : '';
+    var newRow = taskToRow_(t);
+    sh.getRange(rowIdx + 1, 1, 1, newRow.length).setValues([newRow]);
+    t.projectId = t.projectId || null;
+    return t;
+  } finally { lock.releaseLock(); }
+}
+
 /** Sửa thông tin task (title/desc/assignee/difficulty/priority/deadline/note). Giữ nguyên trạng thái & timestamps. */
 function updateTask(token, taskCode, payload) {
   var u = requireUser_(token);
@@ -945,6 +974,10 @@ function updateTask(token, taskCode, payload) {
       t.category = (cat && WORK_CATEGORIES.indexOf(cat) >= 0) ? cat : '';
     }
     if (payload.phatSinh !== undefined) t.phatSinh = !!payload.phatSinh && !!t.projectId;
+    if (payload.startDate !== undefined) {
+      t.startDate = normalizeDate_(payload.startDate);
+      if (t.startDate && t.deadline && t.startDate > t.deadline) throw err_('Ngày bắt đầu không được trễ hơn hạn cuối.');
+    }
 
     var newRow = taskToRow_(t);
     sh.getRange(rowIdx + 1, 1, 1, newRow.length).setValues([newRow]);

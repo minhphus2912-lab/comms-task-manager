@@ -130,7 +130,12 @@ a:hover { text-decoration: underline; }
 .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
 .grid-dashboard { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: var(--sp-4); align-items: start; }
 .dash-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
-@media (max-width: 760px) { .dash-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .dash-grid { grid-template-columns: 1fr !important; }
+  .dash-grid .dwidget { grid-column: 1 / -1 !important; }   /* bỏ span 2 đã lưu trên desktop -> điện thoại luôn 1 cột */
+  .dash-grid .dwidget-resize { display: none; }              /* tắt kéo-resize trên điện thoại (không dùng touch) */
+  .dash-grid .dwidget-bar { cursor: default; }
+}
 /* Khung dashboard tuỳ biến: kéo thanh tiêu đề để đổi thứ tự, kéo góc để đổi kích thước, bấm để phóng to. */
 .dwidget { background: rgba(255,255,255,0.34); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); border: var(--glass-border); border-radius: 20px; padding: 4px 14px 16px; position: relative; min-width: 0; outline: 2px solid transparent; outline-offset: -1px; transition: outline-color .15s ease, box-shadow .15s ease, -webkit-filter .2s ease, filter .2s ease; }
 .dwidget .chart-container { transition: height .16s cubic-bezier(.2,.8,.2,1); }
@@ -212,6 +217,17 @@ a:hover { text-decoration: underline; }
   .sum-row .tr-code { grid-area: code; justify-self: start; }
   .sum-row > .pill { grid-area: pill; justify-self: end; }
   .sum-row .sum-main { grid-area: main; }
+  /* Form 2 cột -> 1 cột cho dễ nhập trên điện thoại */
+  .form-grid { grid-template-columns: 1fr !important; }
+  /* Tiêu đề trang gọn lại */
+  .page-title h1 { font-size: 21px; line-height: 1.2; }
+  .page-title .sub { font-size: 12.5px; }
+  /* KPI/thẻ tổng hợp: 2 cột cho vừa màn */
+  .grid-cards { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  /* Bộ chọn người: 2 cột đều trên điện thoại */
+  .apick { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  /* Bảng cuộn ngang mượt, modal sát mép hơn */
+  .modal { border-radius: 26px; }
 }
 
 /* Cắt tiêu đề tối đa 2 dòng (bảng dự án) */
@@ -526,9 +542,13 @@ input:focus, select:focus, textarea:focus { outline: none; background: rgba(255,
 .sticker-grid img { width: 100%; aspect-ratio: 1; cursor: pointer; border-radius: 12px; padding: 4px; transition: background var(--t-fast); }
 .sticker-grid img:hover { background: rgba(0,0,0,0.07); }
 @media (max-width: 860px) {
-  .chat-wrap { grid-template-columns: 1fr; height: calc(100vh - 150px); }
+  .chat-wrap { grid-template-columns: 1fr; height: calc(100vh - 150px); min-width: 0; }
   .chat-wrap.show-thread .chat-side { display: none; }
   .chat-wrap:not(.show-thread) .chat-thread { display: none; }
+  /* Cho phép co lại trong khung điện thoại (tránh tràn ngang) */
+  .chat-side, .chat-thread, .chat-list, .chat-li, .cl-body { min-width: 0; }
+  .chat-side-actions { flex-wrap: wrap; }
+  .chat-side-actions .btn { flex: 1 1 auto; min-width: 0; }
 }
 .cal-cell { cursor: pointer; }
 .cal-daynum { font-weight: 700; font-size: 13px; margin-bottom: 3px; color: var(--c-text); }
