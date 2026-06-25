@@ -735,20 +735,23 @@ thead th{ background: rgba(255,255,255,0.34); }
  }
 
  var ROLE = {
+   ADMIN: 'ADMIN',
    HEAD: 'TRUONG_PHONG', DEPUTY: 'PHO_PHONG', STAFF: 'CHUYEN_VIEN',
    LEAD: 'LEAD_PROD', QUAY: 'SUBLEAD_QUAY', CHUP: 'SUBLEAD_CHUP', MEMBER: 'THANH_VIEN'
  };
  var ROLE_LABEL = {
+   ADMIN: 'Quản trị viên (ADMIN)',
    TRUONG_PHONG: 'Trưởng phòng', PHO_PHONG: 'Phó phòng', CHUYEN_VIEN: 'Chuyên viên',
    LEAD_PROD: 'Lead Production', SUBLEAD_QUAY: 'Sub-Lead (Quay)', SUBLEAD_CHUP: 'Sub-Lead (Chụp)', THANH_VIEN: 'Thành viên'
  };
  var ROLE_CLASS = {
+   ADMIN: 'role-head',
    TRUONG_PHONG: 'role-head', PHO_PHONG: 'role-deputy', CHUYEN_VIEN: 'role-staff',
    LEAD_PROD: 'role-lead', SUBLEAD_QUAY: 'role-sublead', SUBLEAD_CHUP: 'role-sublead', THANH_VIEN: 'role-member'
  };
  var CREW_ROLES = [ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
- var CREW_MGR_ROLES = [ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP];
- var CREW_VIEW_ROLES = [ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
+ var CREW_MGR_ROLES = [ROLE.ADMIN, ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP];
+ var CREW_VIEW_ROLES = [ROLE.ADMIN, ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
  var GRANT_KEYS = ['MANAGE_CREW'];
  var CREW_ROLE_OPTIONS = [[ROLE.LEAD, 'Lead Production'], [ROLE.QUAY, 'Sub-Lead Production (Quay)'], [ROLE.CHUP, 'Sub-Lead Production (Chụp)'], [ROLE.MEMBER, 'Thành viên']];
  var STATUS = { TODO: 'Chưa bắt đầu', RUNNING: 'Đang chạy', PENDING: 'Tạm dừng', SENT: 'Đã gửi', DONE: 'Hoàn thành', UNCLAIMED: 'Chưa đăng ký' };
@@ -788,15 +791,16 @@ thead th{ background: rgba(255,255,255,0.34); }
  function el(id) { return document.getElementById(id); }
  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
  function pad2(n) { return ('0' + n).slice(-2); }
- function isManager(u) { return u && (u.role === ROLE.HEAD || u.role === ROLE.DEPUTY); }
- function isHead(u) { return u && u.role === ROLE.HEAD; }
+ function isAdmin(u) { return u && u.role === ROLE.ADMIN; }
+ function isManager(u) { return u && (u.role === ROLE.ADMIN || u.role === ROLE.HEAD || u.role === ROLE.DEPUTY); }
+ function isHead(u) { return u && (u.role === ROLE.ADMIN || u.role === ROLE.HEAD); }
  function isCrewRole(role) { return CREW_ROLES.indexOf(role) >= 0; }
  function hasGrant(u, key) { return !!(u && u.grants && u.grants.indexOf(key) >= 0); }
  function canManageCrew(u) { return u && (CREW_MGR_ROLES.indexOf(u.role) >= 0 || hasGrant(u, 'MANAGE_CREW')); }
  function canViewCrew(u) { return u && (canManageCrew(u) || isCrewRole(u.role)); }
  function isCrewAdmin(u) { return u && (isManager(u) || hasGrant(u, 'MANAGE_CREW')); }
  // Phạm vi xem dữ liệu PHÒNG: all / allButHigher / own / none.
- function deptScopeOf(role) { if (role===ROLE.HEAD) return 'all'; if (role===ROLE.DEPUTY) return 'allButHigher'; if (role===ROLE.STAFF) return 'own'; return 'none'; }
+ function deptScopeOf(role) { if (role===ROLE.ADMIN) return 'all'; if (role===ROLE.HEAD) return 'all'; if (role===ROLE.DEPUTY) return 'allButHigher'; if (role===ROLE.STAFF) return 'own'; return 'none'; }
  function hasDeptBoard(role) { return deptScopeOf(role) !== 'none'; }
  // Ai được SỬA/XOÁ một task: task crew -> quản lý crew; task thường/dự án -> Trưởng/Phó phòng.
  function canManageTask(t) { return t && t.crewTask ? canManageCrew(state.user) : isManager(state.user); }
@@ -808,7 +812,7 @@ thead th{ background: rgba(255,255,255,0.34); }
  // Quản lý (Leader/Sub-lead/Trưởng/Phó phòng) được ÉP đổi trạng thái việc của người khác.
  function canForceStatus(t) { return t && (t.crewTask ? canManageCrew(state.user) : isManager(state.user)); }
  // Phân cấp hiển thị: số NHỎ = cấp CAO. Vai trò thấp không xem được thông tin vai trò cao.
- var ROLE_RANK = { TRUONG_PHONG:0, PHO_PHONG:1, CHUYEN_VIEN:2, LEAD_PROD:0, SUBLEAD_QUAY:1, SUBLEAD_CHUP:1, THANH_VIEN:3 };
+ var ROLE_RANK = { ADMIN:-1, TRUONG_PHONG:0, PHO_PHONG:1, CHUYEN_VIEN:2, LEAD_PROD:0, SUBLEAD_QUAY:1, SUBLEAD_CHUP:1, THANH_VIEN:3 };
  function rankOf(role) { var r = ROLE_RANK[role]; return (r === undefined) ? 9 : r; }
  function siloOf(role) { return isCrewRole(role) ? 'crew' : 'dept'; }
  function outranksWithinSilo(viewerRole, targetRole) { return siloOf(viewerRole) === siloOf(targetRole) && rankOf(targetRole) < rankOf(viewerRole); }
@@ -929,9 +933,10 @@ thead th{ background: rgba(255,255,255,0.34); }
  // =========================================================================
  // MOCK DB
  // =========================================================================
- var MOCK_KEY = 'pttt_mock_v6';
+ var MOCK_KEY = 'pttt_mock_v7';
  function mockSeed() {
    var members = [
+     { code: 'ADMIN', name: 'ADMIN', pin: '291219', role: ROLE.ADMIN, title: 'Quản trị hệ thống', active: true, createdAt: getLocalIso() },
      { code: 'TP01', name: 'Trưởng phòng', pin: '123456', role: ROLE.HEAD, title: 'Trưởng phòng Truyền thông', active: true, createdAt: getLocalIso() },
      { code: 'PP01', name: 'Lê Minh Phó', pin: '123456', role: ROLE.DEPUTY, title: 'Phó phòng Nội dung', active: true, createdAt: getLocalIso() },
      { code: 'TT01', name: 'Nguyễn An', pin: '123456', role: ROLE.STAFF, title: 'Chuyên viên Thiết kế', active: true, createdAt: getLocalIso() },
@@ -2689,30 +2694,22 @@ thead th{ background: rgba(255,255,255,0.34); }
      requestAnimationFrame(function () { drawCharts(s); });
      return;
    }
-   // tab === 'members'
-   setTitle('🎬 Production Crew — Nhân sự', 'Đội ngũ Production (quay · chụp · dựng đa phương tiện)');
-   var crewTasks = state.tasks.filter(function (t) { return t.crewTask; });
-   var crewMembers = state.members.filter(function (m) { return isCrewRole(m.role); });
-   var body = '';
-   {
-     var rowsHtml = crewMembers.slice().sort(function(a,b){ return CREW_ROLES.indexOf(a.role)-CREW_ROLES.indexOf(b.role) || a.code.localeCompare(b.code); }).map(function (m) {
-       var mt = crewTasks.filter(function(t){return isAssignee(t,m.code);});
-       var dn = mt.filter(function(t){return t.status===STATUS.DONE;}).length;
-       var canEdit = crewMgr && (isCrewAdmin(state.user) || rankOf(m.role) > rankOf(state.user.role));
-       var canDel = crewMgr && m.code !== state.user.code && (isCrewAdmin(state.user) || rankOf(m.role) > rankOf(state.user.role));
-       return '<tr><td class="mono">' + esc(m.code) + '</td><td><b>' + esc(m.name) + '</b></td>' +
-         '<td><span class="role-badge ' + (ROLE_CLASS[m.role]||'') + '">' + esc(ROLE_LABEL[m.role]||m.role) + '</span></td>' +
-         '<td>' + esc(m.title||'') + '</td><td class="center">' + mt.length + '</td><td class="center">' + dn + '</td>' +
-         '<td class="right nowrap">' +
-         (canEdit ? '<button class="btn btn--ghost btn--sm" data-action="edit-crew-member" data-code="' + esc(m.code) + '">' + ic('edit') + ' Sửa</button>' : '') +
-         (canDel ? '<button class="btn btn--ghost btn--sm" data-action="delete-member" data-code="' + esc(m.code) + '" style="color:var(--c-danger)">' + ic('trash') + ' Xoá</button>' : '') + '</td></tr>';
-     }).join('');
-     body = '<div class="row row--between row--wrap" style="margin-bottom:24px;gap:10px"><div class="faint text-sm">Đội ngũ Production Crew · ' + crewMembers.length + ' thành viên</div>' +
-       (crewMgr ? '<div class="row" style="gap:8px"><button class="btn btn--primary" data-action="add-crew-member">+ Thêm nhân sự</button><button class="btn btn--secondary" data-action="open-crew-role">⚙️ Đổi vai trò</button></div>' : '') + '</div>' +
-       (crewMembers.length ? '<div class="card stack" style="padding:0;overflow:hidden;background:rgba(255,255,255,0.4)"><div class="table-wrap" style="border:none;box-shadow:none;border-radius:0"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Vai trò Crew</th><th>Chuyên môn</th><th class="center">Task giao</th><th class="center">Hoàn thành</th><th></th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></div>'
-        : '<div class="card empty"><div class="big">👥</div><p>Chưa có thành viên crew.' + (crewMgr ? ' Bấm "+ Thêm nhân sự" để thêm.' : '') + '</p></div>');
-   }
-   setView(body);
+   // tab === 'members' — GIAO DIỆN GIỐNG PHÒNG: lưới thẻ + tìm kiếm + thêm/đổi vai trò + bấm xem hồ sơ.
+   var selCrew = state.selectedMember ? (state.members.filter(function (x) { return x.code === state.selectedMember; })[0] || null) : null;
+   if (selCrew && isCrewRole(selCrew.role)) return renderMemberDetail(state.selectedMember);
+   setTitle('🎬 Production Crew — Nhân sự', 'Đội ngũ Production · tìm theo tên/mã · bấm vào một người để xem hồ sơ.');
+   var crewMembers = state.members.filter(function (m) { return isCrewRole(m.role); }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'vi'); });
+   var toolbar = '<div class="card" style="padding:14px 18px;margin-bottom:18px"><div class="row row--wrap" style="gap:12px;align-items:center">' +
+     '<input id="mem-search" placeholder="🔎 Tìm theo tên hoặc mã nhân sự..." value="' + esc(state.memberSearch || '') + '" style="max-width:340px;flex:1">' +
+     '<div class="faint text-sm">' + crewMembers.length + ' thành viên crew</div><div class="spacer"></div>' +
+     (crewMgr ? '<button class="btn btn--primary" data-action="add-crew-member">+ Thêm nhân sự</button><button class="btn btn--secondary" data-action="open-crew-role">⚙️ Đổi vai trò</button>' : '') +
+     '</div></div>';
+   var grid = crewMembers.length
+     ? '<div data-mem-group><div class="grid-cards">' + crewMembers.map(memberCard_).join('') + '</div></div>'
+     : '<div class="card empty"><div class="big">🎬</div><p>Chưa có thành viên crew.' + (crewMgr ? ' Bấm "+ Thêm nhân sự" để thêm.' : '') + '</p></div>';
+   setView(toolbar + grid + '<div id="mem-none" class="empty text-sm" style="display:none">Không tìm thấy nhân sự khớp từ khoá.</div>');
+   var siC = el('mem-search');
+   if (siC) { siC.addEventListener('input', applyMemberSearch_); if (state.memberSearch) applyMemberSearch_(); }
  }
 
  function doDeleteMember(code) {
@@ -2867,9 +2864,19 @@ thead th{ background: rgba(255,255,255,0.34); }
  }
 
  function memberCard_(m) {
+   var u = state.user;
    var mt = state.tasks.filter(function (t) { return isAssignee(t, m.code); });
    var dn = mt.filter(function (t) { return t.status === STATUS.DONE; }).length;
    var hay = (String(m.name || '') + ' ' + String(m.code || '')).toLowerCase();
+   // Nút Sửa/Xoá theo SILO: crew -> form crew (edit-crew-member); Phòng -> form Phòng (edit-member).
+   var isCrew = isCrewRole(m.role);
+   var canEditThis = isCrew ? (canManageCrew(u) && (isCrewAdmin(u) || rankOf(m.role) > rankOf(u.role))) : isManager(u);
+   var editAct = isCrew ? 'edit-crew-member' : 'edit-member';
+   var canDelThis = canEditThis && m.code !== u.code && m.role !== ROLE.HEAD && m.role !== ROLE.ADMIN;
+   var actionsHtml = canEditThis ? '<div class="row" style="gap:6px;margin-top:6px;justify-content:center" onclick="event.stopPropagation()">' +
+        '<button class="btn btn--ghost btn--sm" data-action="' + editAct + '" data-code="' + esc(m.code) + '">' + ic('edit') + ' Sửa</button>' +
+        (canDelThis ? '<button class="btn btn--ghost btn--sm" data-action="delete-member" data-code="' + esc(m.code) + '" style="color:var(--c-danger)">' + ic('trash') + ' Xoá</button>' : '') +
+      '</div>' : '';
    return '<div class="card stack" data-mem-card data-search="' + esc(hay) + '" data-action="view-member" data-code="' + esc(m.code) + '" style="cursor:pointer;align-items:center;text-align:center;gap:8px;padding:20px 16px">' +
      avatarHtml(m, 64, null) +
      '<div><div class="uname" style="font-weight:700">' + esc(m.name) + '</div><div class="mono faint text-xs">' + esc(m.code) + '</div></div>' +
@@ -2877,10 +2884,7 @@ thead th{ background: rgba(255,255,255,0.34); }
      (m.title ? '<div class="text-xs faint">' + esc(m.title) + '</div>' : '') +
      '<div class="text-xs"><b>' + mt.length + '</b> việc · <b style="color:#1e8040">' + dn + ' xong</b></div>' +
      (m.active ? '' : '<span class="tag tag--none">Vô hiệu hóa</span>') +
-     (isManager(state.user) ? '<div class="row" style="gap:6px;margin-top:6px;justify-content:center">' +
-        '<button class="btn btn--ghost btn--sm" data-action="edit-member" data-code="' + esc(m.code) + '">' + ic('edit') + ' Sửa</button>' +
-        ((m.code !== state.user.code && m.role !== ROLE.HEAD) ? '<button class="btn btn--ghost btn--sm" data-action="delete-member" data-code="' + esc(m.code) + '" style="color:var(--c-danger)">' + ic('trash') + ' Xoá</button>' : '') +
-      '</div>' : '') +
+     actionsHtml +
      '</div>';
  }
  function applyMemberSearch_() {

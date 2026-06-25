@@ -38,15 +38,16 @@ var CHAT_COLS = ['id', 'type', 'name', 'memberCodes', 'createdBy', 'createdAt'];
 var MSG_COLS  = ['id', 'chatId', 'senderCode', 'kind', 'body', 'createdAt'];
 
 var ROLE = {
+  ADMIN: 'ADMIN', // Quản trị hệ thống — quyền CAO NHẤT (trên cả Trưởng phòng), thấy & quản lý toàn bộ Phòng + Crew.
   HEAD: 'TRUONG_PHONG', DEPUTY: 'PHO_PHONG', STAFF: 'CHUYEN_VIEN',
   LEAD: 'LEAD_PROD', QUAY: 'SUBLEAD_QUAY', CHUP: 'SUBLEAD_CHUP', MEMBER: 'THANH_VIEN'
 };
-var ALL_ROLES = [ROLE.HEAD, ROLE.DEPUTY, ROLE.STAFF, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
+var ALL_ROLES = [ROLE.ADMIN, ROLE.HEAD, ROLE.DEPUTY, ROLE.STAFF, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
 // Production Crew: vai trò thuộc crew, vai trò được QUẢN LÝ crew, vai trò được XEM crew.
 // "Thành viên" (MEMBER) là vai trò crew CƠ BẢN: chỉ làm task của mình, KHÔNG quản lý.
 var CREW_ROLES = [ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
-var CREW_MGR_ROLES = [ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP];
-var CREW_VIEW_ROLES = [ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
+var CREW_MGR_ROLES = [ROLE.ADMIN, ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP];
+var CREW_VIEW_ROLES = [ROLE.ADMIN, ROLE.HEAD, ROLE.DEPUTY, ROLE.LEAD, ROLE.QUAY, ROLE.CHUP, ROLE.MEMBER];
 
 var STATUS = {
   TODO:    'Chưa bắt đầu',
@@ -332,8 +333,9 @@ function requireUser_(token) {
   if (!u) throw err_('SESSION_EXPIRED');
   return u;
 }
-function isManager_(u) { return u.role === ROLE.HEAD || u.role === ROLE.DEPUTY; }
-function isHead_(u) { return u.role === ROLE.HEAD; }
+function isAdmin_(u) { return u && u.role === ROLE.ADMIN; }
+function isManager_(u) { return u.role === ROLE.ADMIN || u.role === ROLE.HEAD || u.role === ROLE.DEPUTY; }
+function isHead_(u) { return u.role === ROLE.ADMIN || u.role === ROLE.HEAD; }
 function isCrewRole_(role) { return CREW_ROLES.indexOf(role) >= 0; }
 function hasGrant_(u, key) { return !!(u && u.grants && u.grants.indexOf(key) >= 0); }
 // Quản lý Production Crew = Trưởng/Phó phòng + Lead/Sub-Lead crew + người được GIAO quyền MANAGE_CREW. ("Thành viên" KHÔNG quản lý.)
@@ -343,6 +345,7 @@ function canViewCrew_(u) { return canManageCrew_(u) || isCrewRole_(u.role); }
 function isCrewAdmin_(u) { return isManager_(u) || hasGrant_(u, 'MANAGE_CREW'); }
 // Phạm vi xem dữ liệu PHÒNG: all (Trưởng phòng) / allButHigher (Phó phòng) / own (Chuyên viên) / none (vai trò thuần crew).
 function deptScopeOf_(role) {
+  if (role === ROLE.ADMIN) return 'all';
   if (role === ROLE.HEAD) return 'all';
   if (role === ROLE.DEPUTY) return 'allButHigher';
   if (role === ROLE.STAFF) return 'own';
@@ -369,6 +372,7 @@ function canEditTask_(u, t) { return canManageTask_(u, t) || isOwnEditable_(u, t
 // Phân cấp hiển thị: số NHỎ = cấp CAO. Vai trò thấp KHÔNG xem được thông tin vai trò cao.
 // Hai "silo" độc lập: Phòng (HEAD/DEPUTY/STAFF) và Production Crew (LEAD/QUAY/CHUP/MEMBER).
 var ROLE_RANK = {
+  ADMIN: -1,
   TRUONG_PHONG: 0, PHO_PHONG: 1, CHUYEN_VIEN: 2,
   LEAD_PROD: 0, SUBLEAD_QUAY: 1, SUBLEAD_CHUP: 1, THANH_VIEN: 3
 };
@@ -520,7 +524,8 @@ function readKpiTargets_() {
 // v16: thêm cột task assigneeCodes (nhiều người thực hiện trong 1 task; tương thích ngược -> [assigneeCode]).
 // v17: định dạng lại MỌI sheet cho gọn gàng (header, kẻ sọc, bề rộng cột, clip) qua formatSheets_().
 // v18: thêm cột task startDate (ngày bắt đầu dự kiến) + needSupport/supportNote (yêu cầu hỗ trợ).
-var MIG_VERSION = '18';
+// v19: tạo tài khoản ADMIN (vai trò ROLE.ADMIN, quyền cao nhất).
+var MIG_VERSION = '19';
 function ensureMigrated_() {
   try {
     var props = PropertiesService.getScriptProperties();
@@ -1207,6 +1212,7 @@ function upsertMember(token, payload) {
       sh.appendRow([code, name, hashPin_(pin), role, title, active, nowIso_(), '[]', '']);
     } else {
       var cur = values[rowIdx];
+      if (String(cur[3]).trim() === ROLE.ADMIN) throw err_('Không thể chỉnh sửa tài khoản ADMIN tại đây (đổi PIN trong mục Cài đặt).');
       var pinHash = String(cur[2]);
       if (payload.pin !== undefined && String(payload.pin).trim() !== '') {
         if (String(payload.pin).trim().length < 4) throw err_('Mã cá nhân (PIN) tối thiểu 4 ký tự.');
@@ -1278,6 +1284,7 @@ function deleteMember(token, code) {
     for (var i = 1; i < values.length; i++) { if (String(values[i][0]).trim().toUpperCase() === code) { rowIdx = i; break; } }
     if (rowIdx < 0) throw err_('Không tìm thấy thành viên.');
     var targetRole = String(values[rowIdx][3]).trim();
+    if (targetRole === ROLE.ADMIN) throw err_('Không thể xoá tài khoản ADMIN.');
     if (targetRole === ROLE.HEAD) throw err_('Không thể xoá Trưởng phòng. Hãy đổi vai trò trước.');
     var allowed = isCrewRole_(targetRole)
       ? (canManageCrew_(u) && (isCrewAdmin_(u) || rankOf_(targetRole) > rankOf_(u.role)))

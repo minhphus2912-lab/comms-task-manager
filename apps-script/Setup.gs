@@ -54,9 +54,11 @@ function setup_(withDemo) {
   seedConfig_();
   CacheService.getScriptCache().remove('CONFIG');
 
-  // Tài khoản Trưởng phòng đầu tiên (đổi PIN ngay sau khi đăng nhập).
+  // Tài khoản Trưởng phòng đầu tiên (đổi PIN ngay sau khi đăng nhập). Kiểm tra theo MÃ (vì ADMIN có thể đã được seed trước).
   var mSheet = ss.getSheetByName(SH_MEMBERS);
-  if (mSheet.getLastRow() < 2) {
+  var _mv = mSheet.getDataRange().getValues(), _hasTP01 = false;
+  for (var _r = 1; _r < _mv.length; _r++) { if (String(_mv[_r][0]).trim().toUpperCase() === 'TP01') { _hasTP01 = true; break; } }
+  if (!_hasTP01) {
     mSheet.appendRow(['TP01', 'Trưởng phòng', hashPin_('123456'), ROLE.HEAD,
                       'Trưởng phòng Truyền thông', true, nowIso_(), '[]']);
     Logger.log('Đã tạo Trưởng phòng: TP01, PIN mặc định 123456 — HÃY ĐỔI PIN.');
@@ -87,7 +89,21 @@ function migrate_() {
   ensureSheet_(ss, SH_CHATS, CHAT_COLS);
   ensureSheet_(ss, SH_MESSAGES, MSG_COLS);
   migrateRolesAndConfig_();
+  ensureAdmin_();   // tạo tài khoản ADMIN (quyền cao nhất) nếu chưa có
   formatSheets_(); // mỗi lần migrate -> định dạng lại sheet cho gọn gàng
+}
+
+// Tạo tài khoản ADMIN (quyền CAO NHẤT) — idempotent: chỉ thêm nếu chưa tồn tại. Mã ADMIN / PIN 291219 (băm SHA-256).
+function ensureAdmin_() {
+  var ss = getSS_();
+  var sh = ss.getSheetByName(SH_MEMBERS);
+  if (!sh) return;
+  var vals = sh.getDataRange().getValues();
+  for (var i = 1; i < vals.length; i++) {
+    if (String(vals[i][0]).trim().toUpperCase() === 'ADMIN') return; // đã có -> không đụng (giữ PIN người dùng tự đổi)
+  }
+  sh.appendRow(['ADMIN', 'ADMIN', hashPin_('291219'), ROLE.ADMIN, 'Quản trị hệ thống', true, nowIso_(), '[]', '']);
+  Logger.log('Đã tạo tài khoản ADMIN (quyền cao nhất), PIN mặc định 291219 — nên đổi PIN sau khi đăng nhập.');
 }
 
 // Bề rộng cột gợi ý theo TÊN cột (px). Cột không liệt kê -> 110. Cột "dài/xấu" (avatar base64, pinHash, mô tả, link) -> hẹp + clip.
